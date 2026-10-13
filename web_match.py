@@ -22,9 +22,8 @@ if model_choice == "通义千问 (Qwen)":
     default_model = "qwen-plus"
 elif model_choice == "DeepSeek":
     st.sidebar.markdown("[获取阿里云百炼 API Key](https://bailian.console.aliyun.com/)")
-    # 注意：把原来的 base_url 换成你截图里的这个专属地址
     default_base_url = "https://ws-bfasmdpgnnoew27c.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
-    default_model = "deepseek-v4-flash-0731"
+    default_model = "deepseek-v3"  # 先别用带日期的，换成 deepseek-v3 最稳妥
 elif model_choice == "豆包 (Doubao)":
     st.sidebar.markdown("[获取火山方舟 API Key](https://console.volcengine.com/ark/)")
     default_base_url = "https://ark.cn-beijing.volces.com/api/v3"
