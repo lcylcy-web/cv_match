@@ -39,9 +39,9 @@ model_name = st.sidebar.text_input("模型名称 / 接入点ID：", value=defaul
 def load_data():
     import os
 excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.xlsx")
-    if os.path.exists(excel_path):
+if os.path.exists(excel_path):
         return pd.read_excel(excel_path)
-    return None
+return None
 
 df = load_data()
 
