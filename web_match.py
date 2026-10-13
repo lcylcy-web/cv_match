@@ -29,7 +29,7 @@ elif model_choice == "豆包 (Doubao)":
     default_base_url = "https://ark.cn-beijing.volces.com/api/v3"
     default_model = "doubao-seed-2.0-lite-260428"
 
-api_key = st.sidebar.text_input("请输入 API Key：", type="password")
+api_key = st.sidebar.text_input("请输入 API Key：", value=st.secrets.get("API_KEY", ""), type="password")
 model_name = st.sidebar.text_input("模型名称 / 接入点ID：", value=default_model)
 
 # ================= 主页面 =================
