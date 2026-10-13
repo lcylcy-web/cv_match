@@ -27,26 +27,23 @@ elif model_choice == "DeepSeek":
 elif model_choice == "豆包 (Doubao)":
     st.sidebar.markdown("[获取火山方舟 API Key](https://console.volcengine.com/ark/)")
     default_base_url = "https://ark.cn-beijing.volces.com/api/v3"
-    # 这里是你截图里显示的最新模型ID
-    default_model = "doubao-seed-2.0-lite-260428" 
+    default_model = "doubao-seed-2.0-lite-260428"
 
 api_key = st.sidebar.text_input("请输入 API Key：", type="password")
-# 允许用户自定义模型名称
 model_name = st.sidebar.text_input("模型名称 / 接入点ID：", value=default_model)
 
 # ================= 主页面 =================
-# 读取 Excel（去掉缓存，保证每次刷新都能读取最新的 Excel 文件）
+# 读取 Excel（修复了路径和缩进问题）
 def load_data():
-    import os
-excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.xlsx")
-if os.path.exists(excel_path):
+    excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.xlsx")
+    if os.path.exists(excel_path):
         return pd.read_excel(excel_path)
-return None
+    return None
 
 df = load_data()
 
 if df is None:
-    st.error("❌ 未找到 jobs.xlsx，请确保文件在 D:\\cv_mcp 目录下！")
+    st.error("❌ 未找到 jobs.xlsx，请确保文件在项目目录下！")
 else:
     st.success(f"✅ 已成功加载 {len(df)} 个本地岗位数据！")
     
@@ -91,7 +88,7 @@ else:
 
                     # 调用大模型
                     response = client.chat.completions.create(
-                        model=model_name, # 使用用户指定的模型
+                        model=model_name,
                         messages=[
                             {"role": "system", "content": "你是一个资深的招聘专家，擅长人岗匹配分析。"},
                             {"role": "user", "content": prompt}
