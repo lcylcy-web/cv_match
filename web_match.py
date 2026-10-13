@@ -21,9 +21,9 @@ if model_choice == "通义千问 (Qwen)":
     default_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     default_model = "qwen-plus"
 elif model_choice == "DeepSeek":
-    st.sidebar.markdown("[获取 DeepSeek API Key](https://platform.deepseek.com/)")
-    default_base_url = "https://api.deepseek.com"
-    default_model = "deepseek-chat"
+    st.sidebar.markdown("[获取阿里云百炼 API Key](https://bailian.console.aliyun.com/)")
+    default_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    default_model = "deepseek-v4-flash"
 elif model_choice == "豆包 (Doubao)":
     st.sidebar.markdown("[获取火山方舟 API Key](https://console.volcengine.com/ark/)")
     default_base_url = "https://ark.cn-beijing.volces.com/api/v3"
