@@ -3,8 +3,8 @@ import pandas as pd
 import os
 from openai import OpenAI
 
-st.set_page_config(page_title="多模型简历岗位匹配工具", page_icon="📄", layout="wide")
-st.title("📄 简历与岗位智能匹配 (多模型版)")
+st.set_page_config(page_title="简历岗位匹配工具", page_icon="📄", layout="wide")
+st.title("📄 简历与岗位智能匹配 ")
 
 # ================= 侧边栏配置 =================
 st.sidebar.header("🔑 配置大模型")
@@ -29,11 +29,12 @@ elif model_choice == "豆包 (Doubao)":
     default_base_url = "https://ark.cn-beijing.volces.com/api/v3"
     default_model = "doubao-seed-2.0-lite-260428"
 
+# 自动读取 Secrets 中的 API_KEY
 api_key = st.sidebar.text_input("请输入 API Key：", value=st.secrets.get("API_KEY", ""), type="password")
 model_name = st.sidebar.text_input("模型名称 / 接入点ID：", value=default_model)
 
 # ================= 主页面 =================
-# 读取 Excel（修复了路径和缩进问题）
+# 读取 Excel
 def load_data():
     excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.xlsx")
     if os.path.exists(excel_path):
@@ -65,10 +66,20 @@ else:
                         base_url=default_base_url
                     )
 
-                    # 拼接岗位数据
+                    # 拼接岗位数据（精准适配你的9个表头）
                     jobs_text = ""
                     for index, row in df.iterrows():
-                        jobs_text += f"岗位{index+1}：\n企业：{row.get('企业名称', '')}\n岗位：{row.get('招聘岗位', '')}\n学历：{row.get('学历要求', '')}\n专业要求：{row.get('专业要求', '')}\n投递渠道：{row.get('投递渠道', '')}\n---\n"
+                        jobs_text += f"岗位{index+1}：\n"
+                        jobs_text += f"企业名称：{row.get('企业名称', '')}\n"
+                        jobs_text += f"企业性质：{row.get('企业性质', '')}\n"
+                        jobs_text += f"招聘岗位：{row.get('招聘岗位', '')}\n"
+                        jobs_text += f"工作地点：{row.get('工作地点', '')}\n"
+                        jobs_text += f"学历要求：{row.get('学历要求', '')}\n"
+                        jobs_text += f"专业要求：{row.get('专业要求', '')}\n"
+                        jobs_text += f"经验要求：{row.get('经验要求', '')}\n"
+                        jobs_text += f"薪资福利：{row.get('薪资福利', '')}\n"
+                        jobs_text += f"更新日期：{row.get('更新日期', '')}\n"
+                        jobs_text += "---\n"
 
                     # 构建给 AI 的指令
                     prompt = f"""
@@ -81,9 +92,9 @@ else:
                     {jobs_text}
 
                     请直接输出匹配度最高的前 5 个岗位，格式要求：
-                    1. 【企业名称 - 岗位名称】匹配得分：XX分
-                    2. 匹配理由：...(说明为什么这个候选人和这个岗位匹配)
-                    3. 投递建议：...(结合投递渠道给出建议)
+                    1. 【企业名称 - 招聘岗位】匹配得分：XX分
+                    2. 匹配理由：结合候选人的学历、专业、经验，说明为什么匹配该岗位。
+                    3. 岗位详情：包括工作地点、薪资福利、更新日期。
                     """
 
                     # 调用大模型
