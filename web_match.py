@@ -76,56 +76,6 @@ def parse_match_json(content: str):
         return None
     return data
 
-def _esc(text) -> str:
-    """HTML 转义，防止岗位文本里的特殊字符破坏卡片结构。"""
-    if text is None:
-        return ""
-    return (
-        str(text)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
-
-# ---------- 看板版样式（参照房源管理后台：浅色渐变、彩色胶囊、卡片网格） ----------
-CARD_CSS = (
-    "<style>"
-    ".db-page{background:linear-gradient(160deg,#eef3fb 0%,#f6f4fc 100%);border-radius:20px;padding:20px}"
-    ".db-title{font-size:22px;font-weight:800;color:#1f2a37;margin-bottom:16px}"
-    ".db-caps{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}"
-    ".db-cap{display:flex;align-items:center;border-radius:14px;overflow:hidden;color:#fff;font-size:13px;font-weight:600}"
-    ".db-cap .c-label{padding:10px 14px}"
-    ".db-cap .c-val{padding:10px 14px;background:rgba(255,255,255,.22);font-weight:700}"
-    ".db-overview{background:#fff;border-radius:18px;padding:18px;margin-bottom:18px;box-shadow:0 1px 3px rgba(31,42,55,.06)}"
-    ".db-ov-title{font-size:16px;font-weight:700;color:#1f2a37;margin-bottom:14px}"
-    ".db-ov-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}"
-    ".db-ov-item{display:flex;align-items:center;gap:10px}"
-    ".db-ov-ico{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:0 0 38px}"
-    ".db-ov-ico svg{width:20px;height:20px}"
-    ".db-ov-item .v{font-size:18px;font-weight:800;color:#1f2a37}"
-    ".db-ov-item .l{font-size:12px;color:#6b7280}"
-    ".db-charts{display:grid;grid-template-columns:3fr 2fr;gap:18px;margin-bottom:18px}"
-    ".db-chart-card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 1px 3px rgba(31,42,55,.06)}"
-    ".db-chart-card h3{font-size:15px;font-weight:700;color:#1f2a37;margin-bottom:10px}"
-    ".db-chart{width:100%;height:300px}"
-    ".db-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}"
-    ".db-job{background:#fff;border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(31,42,55,.06);border:1px solid #eef0f4}"
-    ".db-job-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}"
-    ".db-job-name{font-size:15px;font-weight:700;color:#1f2a37;flex:1;min-width:0;line-height:1.4}"
-    ".db-job-rank{flex:0 0 auto;font-size:12px;font-weight:700;color:#4a8230;background:#eef5e8;border-radius:8px;padding:3px 9px;white-space:nowrap}"
-    ".db-job-reason{font-size:13px;color:#5b6657;margin-bottom:10px;line-height:1.6}"
-    ".db-job-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:#5b6657;margin-bottom:10px}"
-    ".db-job-meta span{display:inline-flex;align-items:center;gap:5px;min-width:0}"
-    ".db-job-meta svg{width:13px;height:13px;color:#5f9e3f;flex:0 0 auto}"
-    ".db-score{display:flex;align-items:center;gap:10px}"
-    ".db-bar{flex:1;height:8px;border-radius:999px;background:#eceee8;overflow:hidden}"
-    ".db-bar i{display:block;height:100%;background:linear-gradient(90deg,#5f9e3f,#7cb85a);border-radius:999px}"
-    ".db-num{font-size:13px;font-weight:700;color:#4a8230;min-width:46px;text-align:right}"
-    "@media (max-width:900px){.db-charts{grid-template-columns:1fr}.db-ov-grid{grid-template-columns:repeat(2,1fr)}}"
-    "</style>"
-)
-
 def _chart_bundle(result_df: pd.DataFrame) -> dict:
     """从结果表组装图表所需数据：条形图（岗位-得分）与环形图（得分段占比）。"""
     labels, values = [], []
@@ -313,104 +263,43 @@ else:
                         st.markdown("　" + "　｜　".join(detail_parts))
 
     else:
-        # ---------- 页面二：看板版一览表（后台看板模板 + 图表 + AI 结果自动填充） ----------
+        # ---------- 页面二：表格版一览表（Streamlit 原生组件 + 图表） ----------
         if result_df is not None and not result_df.empty:
             scores = [s for s in result_df["匹配得分"].tolist() if s != "" and s is not None]
             total = len(result_df)
             top_score = max(scores) if scores else 0
             avg_score = round(sum(scores) / len(scores)) if scores else 0
+            high_cnt = next((s["value"] for s in _chart_bundle(result_df)["segments"] if s["name"].startswith("高")), 0)
             chart = _chart_bundle(result_df)
 
-            st.markdown(CARD_CSS, unsafe_allow_html=True)
+            # 原生指标卡一行四列
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("推荐岗位", f"{total} 个")
+            m2.metric("最高得分", f"{top_score} 分")
+            m3.metric("平均得分", f"{avg_score} 分")
+            m4.metric("高匹配岗位", f"{high_cnt} 个")
 
-            # 彩色统计胶囊（对应模板顶部状态胶囊）
-            capsules = [
-                ("推荐岗位", total, "#4f8ef7", "#7fb2f9"),
-                ("最高得分", f"{top_score}", "#f0a93b", "#f6c678"),
-                ("平均得分", f"{avg_score}", "#5f9e3f", "#8bc46f"),
-                ("待提升岗位", chart["segments"][2]["value"], "#e57373", "#ef9a9a"),
-            ]
-            cap_html = '<div class="db-caps">' + "".join(
-                f'<div class="db-cap" style="background:{c}"><span class="c-label">{l}</span>'
-                f'<span class="c-val" style="background:{v}">{val}</span></div>'
-                for l, val, c, v in capsules
-            ) + "</div>"
+            st.divider()
 
-            # 全局指标条（对应模板“楼宇全局视图”）
-            ov_html = (
-                '<div class="db-overview"><div class="db-ov-title">匹配全局视图</div>'
-                '<div class="db-ov-grid">'
-                f'<div class="db-ov-item"><span class="db-ov-ico" style="background:#e8f1fe;color:#4f8ef7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg></span><div><div class="v">{total}</div><div class="l">推荐岗位数</div></div></div>'
-                f'<div class="db-ov-item"><span class="db-ov-ico" style="background:#fdf1e2;color:#f0a93b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 15.3 6.8 18.1l1-5.8L3.5 8.2l5.9-.9z"/></svg></span><div><div class="v">{top_score}</div><div class="l">榜首得分</div></div></div>'
-                f'<div class="db-ov-item"><span class="db-ov-ico" style="background:#eef5e8;color:#5f9e3f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><div class="v">{avg_score}</div><div class="l">平均得分</div></div></div>'
-                f'<div class="db-ov-item"><span class="db-ov-ico" style="background:#fdeaea;color:#e57373"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span><div><div class="v">{chart["segments"][0]["value"]}</div><div class="l">高匹配岗位</div></div></div>'
-                "</div></div>"
-            )
-
-            # 岗位卡片网格
-            cards_html = []
-            for _, row in result_df.iterrows():
-                rank = row.get("排名", "")
-                company = _esc(row.get("企业名称", ""))
-                job = _esc(row.get("招聘岗位", ""))
-                reason = _esc(row.get("匹配理由", ""))
-                location = _esc(row.get("工作地点", ""))
-                salary = _esc(row.get("薪资福利", ""))
-                date = _esc(row.get("更新日期", ""))
-
-                score = row.get("匹配得分", "")
-                if score == "" or score is None:
-                    score_num = 0
-                    score_text = "—"
-                else:
-                    score_num = int(score)
-                    score_text = f"{score_num} 分"
-
-                meta_parts = []
-                if location:
-                    meta_parts.append(
-                        f'<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
-                        f'<path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>{location}</span>'
-                    )
-                if salary:
-                    meta_parts.append(
-                        f'<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
-                        f'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{salary}</span>'
-                    )
-                if date:
-                    meta_parts.append(
-                        f'<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
-                        f'<rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 9h18"/></svg>{date}</span>'
-                    )
-                meta_html = "".join(meta_parts)
-
-                card = (
-                    f'<article class="db-job">'
-                    f'<div class="db-job-top"><div class="db-job-name">{company} — {job}</div>'
-                    f'<div class="db-job-rank">No.{rank}</div></div>'
-                    f'<div class="db-job-reason">{reason}</div>'
-                    f'<div class="db-job-meta">{meta_html}</div>'
-                    f'<div class="db-score"><div class="db-bar"><i style="width:{score_num}%"></i></div>'
-                    f'<div class="db-num">{score_text}</div></div>'
-                    f'</article>'
-                )
-                cards_html.append(card)
-
-            jobs_html = '<div class="db-grid">' + "".join(cards_html) + "</div>"
-
-            # 组装 ECharts 页面（条形图 + 环形图），通过 components.html 嵌入
+            # 图表区：左条形图、右环形图（ECharts 嵌入）
             chart_json = json.dumps(chart, ensure_ascii=False)
             charts_html = f"""
-            <div class="db-charts">
-              <div class="db-chart-card"><h3>各岗位匹配得分对比</h3><div id="barChart" class="db-chart"></div></div>
-              <div class="db-chart-card"><h3>匹配程度构成</h3><div id="pieChart" class="db-chart"></div></div>
+            <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;">
+              <div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:14px;">
+                <div style="font-size:15px;font-weight:600;margin-bottom:8px;">各岗位匹配得分对比</div>
+                <div id="barChart" style="width:100%;height:300px;"></div>
+              </div>
+              <div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:14px;">
+                <div style="font-size:15px;font-weight:600;margin-bottom:8px;">匹配程度构成</div>
+                <div id="pieChart" style="width:100%;height:300px;"></div>
+              </div>
             </div>
             <script src="https://fastly.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
             <script>
               var data = {chart_json};
               var bar = echarts.init(document.getElementById('barChart'));
               bar.setOption({{
-                grid: {{left: 10, right: 30, top: 10, bottom: 10, containLabel: true}},
+                grid: {{left: 10, right: 34, top: 10, bottom: 10, containLabel: true}},
                 tooltip: {{trigger: 'axis', axisPointer: {{type: 'shadow'}}}},
                 xAxis: {{type: 'value', max: 100, axisLabel: {{color: '#6b7280'}}, splitLine: {{lineStyle: {{color: '#eee'}}}}}},
                 yAxis: {{type: 'category', data: data.labels.slice().reverse(), axisLabel: {{color: '#374151', fontSize: 11}}, axisLine: {{show: false}}}},
@@ -429,11 +318,25 @@ else:
               window.addEventListener('resize', function(){{bar.resize(); pie.resize();}});
             </script>
             """
-
             from streamlit.components.v1 import html as st_html
             st_html(charts_html, height=360)
 
-            st.markdown('<div class="db-page">' + cap_html + ov_html + jobs_html + "</div>", unsafe_allow_html=True)
+            st.divider()
+            st.subheader("📌 匹配岗位明细")
+
+            # 原生数据表
+            table_df = result_df.rename(columns={
+                "匹配得分": "得分",
+                "匹配理由": "匹配理由",
+            })
+            st.dataframe(
+                table_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "得分": st.column_config.ProgressColumn("得分", min_value=0, max_value=100, format="%d 分"),
+                },
+            )
 
             st.download_button(
                 "⬇️ 下载匹配结果 CSV",
@@ -442,4 +345,4 @@ else:
                 mime="text/csv",
             )
         else:
-            st.info("💡 暂无看板数据。请先粘贴简历并点击「🚀 开始 AI 智能匹配」；若模型未返回结构化数据，可在文字版查看结论。")
+            st.info("💡 暂无表格数据。请先粘贴简历并点击「🚀 开始 AI 智能匹配」；若模型未返回结构化数据，可在文字版查看结论。")
