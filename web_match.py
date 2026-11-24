@@ -88,11 +88,27 @@ def _esc(text) -> str:
         .replace('"', "&quot;")
     )
 
-# ---------- 卡片版样式（参照活动卡片模板：绿色主色、圆角白卡、进度条） ----------
+# ---------- 卡片版样式（参照活动市集模板：绿色主色、圆角白卡、进度条） ----------
 CARD_CSS = (
     "<style>"
-    ".mk-list{display:flex;flex-direction:column;gap:14px;margin-top:8px}"
-    ".mk-card{background:#fff;border:1px solid #eceee8;border-radius:18px;padding:16px;box-shadow:0 1px 3px rgba(31,42,28,.06)}"
+    ".mk-wrap{max-width:520px;margin:0 auto}"
+    ".mk-hero{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:16/9;background:linear-gradient(135deg,#dfead4,#cfe0c0);margin-bottom:16px}"
+    ".mk-hero-mask{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 35%,rgba(0,0,0,.45))}"
+    ".mk-hero-title{position:absolute;left:16px;bottom:14px;color:#fff;font-size:22px;font-weight:700}"
+    ".mk-hero-tag{position:absolute;right:14px;top:14px;background:rgba(255,255,255,.92);color:#4a8230;font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px}"
+    ".mk-head{padding:2px 4px 14px}"
+    ".mk-head h1{font-size:20px;font-weight:700;margin-bottom:6px;color:#1f2a1c}"
+    ".mk-head p{font-size:14px;color:#5b6657}"
+    ".mk-card{background:#fff;border-radius:18px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(31,42,28,.06)}"
+    ".mk-card-title{font-size:16px;font-weight:700;margin-bottom:14px;color:#1f2a1c}"
+    ".mk-info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}"
+    ".mk-info-cell{background:#eef5e8;border-radius:14px;padding:12px 8px;text-align:center}"
+    ".mk-info-cell .ico{width:22px;height:22px;color:#5f9e3f;margin:0 auto 6px;display:block}"
+    ".mk-info-cell .label{font-size:12px;color:#5b6657;margin-bottom:4px}"
+    ".mk-info-cell .value{font-size:15px;font-weight:700;color:#1f2a1c}"
+    ".mk-info-cell .sub{font-size:11px;color:#5b6657;margin-top:2px}"
+    ".mk-list{display:flex;flex-direction:column;gap:12px}"
+    ".mk-job{border:1px solid #eceee8;border-radius:16px;padding:14px}"
     ".mk-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}"
     ".mk-name{font-size:15px;font-weight:700;color:#1f2a1c;flex:1;min-width:0;line-height:1.4}"
     ".mk-rank{flex:0 0 auto;font-size:12px;font-weight:700;color:#4a8230;background:#eef5e8;border-radius:8px;padding:3px 9px;white-space:nowrap}"
@@ -104,6 +120,12 @@ CARD_CSS = (
     ".mk-bar{flex:1;height:8px;border-radius:999px;background:#eceee8;overflow:hidden}"
     ".mk-bar i{display:block;height:100%;background:#5f9e3f;border-radius:999px}"
     ".mk-num{font-size:13px;font-weight:700;color:#4a8230;min-width:46px;text-align:right}"
+    ".mk-banner{display:flex;align-items:center;gap:12px;background:#eef5e8;border-radius:16px;padding:14px;margin-bottom:16px}"
+    ".mk-badge{flex:0 0 38px;height:38px;border-radius:50%;background:#5f9e3f;color:#fff;display:flex;align-items:center;justify-content:center}"
+    ".mk-badge svg{width:20px;height:20px}"
+    ".mk-banner .b-txt{font-size:14px;font-weight:600;color:#1f2a1c}"
+    ".mk-banner .b-sub{font-size:12px;color:#5b6657}"
+    ".mk-btn{display:block;width:100%;border:none;cursor:pointer;background:#5f9e3f;color:#fff;font-size:16px;font-weight:700;letter-spacing:1px;padding:15px;border-radius:16px;text-align:center}"
     "</style>"
 )
 
@@ -267,12 +289,43 @@ else:
                         st.markdown("　" + "　｜　".join(detail_parts))
 
     else:
-        # ---------- 页面二：卡片版一览表（单独一页，模板风 + 自动填充结果） ----------
-        st.subheader("📋 匹配结果一览表（卡片版）")
+        # ---------- 页面二：卡片版一览表（活动市集模板风 + AI 结果自动填充） ----------
         if result_df is not None and not result_df.empty:
-            # 注入卡片模板样式（参照活动卡片风）
+            # 汇总统计：岗位数、最高得分、平均得分
+            scores = [s for s in result_df["匹配得分"].tolist() if s != "" and s is not None]
+            total = len(result_df)
+            top_score = max(scores) if scores else 0
+            avg_score = round(sum(scores) / len(scores)) if scores else 0
+
             st.markdown(CARD_CSS, unsafe_allow_html=True)
 
+            # 顶部图卡 + 标题副标题
+            hero_html = (
+                '<div class="mk-wrap">'
+                '<div class="mk-hero"><div class="mk-hero-mask"></div>'
+                '<div class="mk-hero-title">简历岗位智能匹配</div>'
+                '<div class="mk-hero-tag">匹配完成</div></div>'
+                '<div class="mk-head"><h1>匹配岗位推荐</h1>'
+                f'<p>共筛选出 {total} 个高匹配岗位，按匹配得分从高到低排列</p></div>'
+            )
+
+            # 三栏汇总信息小卡（对应图一 时间/地点/报名）
+            info_html = (
+                '<div class="mk-card"><div class="mk-card-title">匹配概览</div>'
+                '<div class="mk-info-grid">'
+                '<div class="mk-info-cell">'
+                '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>'
+                f'<div class="label">推荐岗位</div><div class="value">{total} 个</div><div class="sub">AI 精选 Top</div></div>'
+                '<div class="mk-info-cell">'
+                '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 15.3 6.8 18.1l1-5.8L3.5 8.2l5.9-.9z"/></svg>'
+                f'<div class="label">最高得分</div><div class="value">{top_score} 分</div><div class="sub">榜首岗位</div></div>'
+                '<div class="mk-info-cell">'
+                '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+                f'<div class="label">平均得分</div><div class="value">{avg_score} 分</div><div class="sub">整体匹配度</div></div>'
+                '</div></div>'
+            )
+
+            # 岗位卡片流
             cards_html = []
             for _, row in result_df.iterrows():
                 rank = row.get("排名", "")
@@ -309,27 +362,35 @@ else:
                     )
                 meta_html = "".join(meta_parts)
 
-                # 卡片 HTML 必须压成单行、无缩进，避免被 Markdown 当成代码块原样显示
+                # 卡片 HTML 压成单行、无缩进，避免被 Markdown 当成代码块原样显示
                 card = (
-                    f'<article class="mk-card">'
-                    f'<div class="mk-top">'
-                    f'<div class="mk-name">{company} — {job}</div>'
-                    f'<div class="mk-rank">No.{rank}</div>'
-                    f'</div>'
+                    f'<article class="mk-job">'
+                    f'<div class="mk-top"><div class="mk-name">{company} — {job}</div>'
+                    f'<div class="mk-rank">No.{rank}</div></div>'
                     f'<div class="mk-reason">{reason}</div>'
                     f'<div class="mk-meta">{meta_html}</div>'
-                    f'<div class="mk-score">'
-                    f'<div class="mk-bar"><i style="width:{score_num}%"></i></div>'
-                    f'<div class="mk-num">{score_text}</div>'
-                    f'</div>'
+                    f'<div class="mk-score"><div class="mk-bar"><i style="width:{score_num}%"></i></div>'
+                    f'<div class="mk-num">{score_text}</div></div>'
                     f'</article>'
                 )
                 cards_html.append(card)
 
-            st.markdown(
-                '<div class="mk-list">' + "".join(cards_html) + "</div>",
-                unsafe_allow_html=True,
+            jobs_html = (
+                '<div class="mk-card"><div class="mk-card-title">推荐岗位明细</div>'
+                '<div class="mk-list">' + "".join(cards_html) + "</div></div>"
             )
+
+            # 底部横幅 + 主按钮
+            banner_html = (
+                '<div class="mk-banner">'
+                '<span class="mk-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 15.3 6.8 18.1l1-5.8L3.5 8.2l5.9-.9z"/></svg></span>'
+                '<div><div class="b-txt">建议优先投递排名靠前的岗位</div>'
+                '<div class="b-sub">投递前请结合岗位地点、薪资与经验要求综合判断</div></div></div>'
+                '<button class="mk-btn" type="button" onclick="alert(\'演示按钮：接入投递动作后在此绑定\')">查看完整岗位列表</button>'
+                "</div>"
+            )
+
+            st.markdown(hero_html + info_html + jobs_html + banner_html, unsafe_allow_html=True)
 
             st.download_button(
                 "⬇️ 下载匹配结果 CSV",
