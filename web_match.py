@@ -89,25 +89,23 @@ def _esc(text) -> str:
     )
 
 # ---------- 卡片版样式（参照活动卡片模板：绿色主色、圆角白卡、进度条） ----------
-CARD_CSS = """
-<style>
-.mk-list{display:flex;flex-direction:column;gap:14px;margin-top:8px}
-.mk-card{background:#fff;border:1px solid #eceee8;border-radius:18px;padding:16px;
-  box-shadow:0 1px 3px rgba(31,42,28,.06)}
-.mk-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
-.mk-name{font-size:15px;font-weight:700;color:#1f2a1c;flex:1;min-width:0;line-height:1.4}
-.mk-rank{flex:0 0 auto;font-size:12px;font-weight:700;color:#4a8230;background:#eef5e8;
-  border-radius:8px;padding:3px 9px;white-space:nowrap}
-.mk-reason{font-size:13px;color:#5b6657;margin-bottom:10px;line-height:1.6}
-.mk-meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#5b6657;margin-bottom:10px}
-.mk-meta span{display:inline-flex;align-items:center;gap:5px;min-width:0}
-.mk-meta svg{width:13px;height:13px;color:#5f9e3f;flex:0 0 auto}
-.mk-score{display:flex;align-items:center;gap:10px}
-.mk-bar{flex:1;height:8px;border-radius:999px;background:#eceee8;overflow:hidden}
-.mk-bar i{display:block;height:100%;background:#5f9e3f;border-radius:999px}
-.mk-num{font-size:13px;font-weight:700;color:#4a8230;min-width:46px;text-align:right}
-</style>
-"""
+CARD_CSS = (
+    "<style>"
+    ".mk-list{display:flex;flex-direction:column;gap:14px;margin-top:8px}"
+    ".mk-card{background:#fff;border:1px solid #eceee8;border-radius:18px;padding:16px;box-shadow:0 1px 3px rgba(31,42,28,.06)}"
+    ".mk-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}"
+    ".mk-name{font-size:15px;font-weight:700;color:#1f2a1c;flex:1;min-width:0;line-height:1.4}"
+    ".mk-rank{flex:0 0 auto;font-size:12px;font-weight:700;color:#4a8230;background:#eef5e8;border-radius:8px;padding:3px 9px;white-space:nowrap}"
+    ".mk-reason{font-size:13px;color:#5b6657;margin-bottom:10px;line-height:1.6}"
+    ".mk-meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#5b6657;margin-bottom:10px}"
+    ".mk-meta span{display:inline-flex;align-items:center;gap:5px;min-width:0}"
+    ".mk-meta svg{width:13px;height:13px;color:#5f9e3f;flex:0 0 auto}"
+    ".mk-score{display:flex;align-items:center;gap:10px}"
+    ".mk-bar{flex:1;height:8px;border-radius:999px;background:#eceee8;overflow:hidden}"
+    ".mk-bar i{display:block;height:100%;background:#5f9e3f;border-radius:999px}"
+    ".mk-num{font-size:13px;font-weight:700;color:#4a8230;min-width:46px;text-align:right}"
+    "</style>"
+)
 
 def normalize_jobs(items: list) -> pd.DataFrame:
     rows = []
@@ -311,22 +309,22 @@ else:
                     )
                 meta_html = "".join(meta_parts)
 
-                cards_html.append(
-                    f"""
-                    <article class="mk-card">
-                      <div class="mk-top">
-                        <div class="mk-name">{company} — {job}</div>
-                        <div class="mk-rank">No.{rank}</div>
-                      </div>
-                      <div class="mk-reason">{reason}</div>
-                      <div class="mk-meta">{meta_html}</div>
-                      <div class="mk-score">
-                        <div class="mk-bar"><i style="width:{score_num}%"></i></div>
-                        <div class="mk-num">{score_text}</div>
-                      </div>
-                    </article>
-                    """
+                # 卡片 HTML 必须压成单行、无缩进，避免被 Markdown 当成代码块原样显示
+                card = (
+                    f'<article class="mk-card">'
+                    f'<div class="mk-top">'
+                    f'<div class="mk-name">{company} — {job}</div>'
+                    f'<div class="mk-rank">No.{rank}</div>'
+                    f'</div>'
+                    f'<div class="mk-reason">{reason}</div>'
+                    f'<div class="mk-meta">{meta_html}</div>'
+                    f'<div class="mk-score">'
+                    f'<div class="mk-bar"><i style="width:{score_num}%"></i></div>'
+                    f'<div class="mk-num">{score_text}</div>'
+                    f'</div>'
+                    f'</article>'
                 )
+                cards_html.append(card)
 
             st.markdown(
                 '<div class="mk-list">' + "".join(cards_html) + "</div>",
