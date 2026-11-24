@@ -324,19 +324,37 @@ else:
             st.divider()
             st.subheader("📌 匹配岗位明细")
 
-            # 原生数据表
-            table_df = result_df.rename(columns={
-                "匹配得分": "得分",
-                "匹配理由": "匹配理由",
-            })
-            st.dataframe(
-                table_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "得分": st.column_config.ProgressColumn("得分", min_value=0, max_value=100, format="%d 分"),
-                },
-            )
+            # 原生列布局岗位卡片（避免宽表文字截断、列宽死板）
+            for _, row in result_df.iterrows():
+                rank = row.get("排名", "")
+                company = str(row.get("企业名称", "") or "")
+                job = str(row.get("招聘岗位", "") or "")
+                reason = str(row.get("匹配理由", "") or "")
+                location = str(row.get("工作地点", "") or "")
+                salary = str(row.get("薪资福利", "") or "")
+                date = str(row.get("更新日期", "") or "")
+
+                score = row.get("匹配得分", "")
+                score_num = int(score) if score != "" and score is not None else 0
+                score_text = f"{score_num} 分" if score != "" and score is not None else "—"
+
+                with st.container(border=True):
+                    c1, c2 = st.columns([5, 1])
+                    with c1:
+                        st.markdown(f"**{rank}. {company} — {job}**")
+                        if reason:
+                            st.caption(reason)
+                        meta = "　｜　".join(
+                            part for part in [
+                                f"📍 {location}" if location else "",
+                                f"💰 {salary}" if salary else "",
+                                f"🗓 {date}" if date else "",
+                            ] if part
+                        )
+                        if meta:
+                            st.caption(meta)
+                    with c2:
+                        st.metric("匹配得分", score_text)
 
             st.download_button(
                 "⬇️ 下载匹配结果 CSV",
