@@ -11,6 +11,13 @@ st.title("📄 简历与岗位智能匹配 ")
 # ================= 侧边栏配置 =================
 st.sidebar.header("🔑 配置大模型")
 
+# 0. 左侧导航：文字版报告 / 表格版一览表
+view_mode = st.sidebar.radio(
+    "展示版本：",
+    ["📄 文字版报告", "📋 表格版一览表"],
+    help="文字版查看 AI 分析结论；表格版把匹配结果整理成结构化表格。"
+)
+
 # 1. 选择模型
 model_choice = st.sidebar.selectbox(
     "请选择大模型：",
@@ -46,59 +53,60 @@ def load_data():
 
 df = load_data()
 
+# ---------- 解析 AI 返回的结构化 JSON（失败返回 None） ----------
+def parse_match_json(content: str):
+    if not content:
+        return None
+    # 抽取 ```json ... ``` 代码块，否则取整段
+    m = re.search(r"```(?:json)?\s*(.*?)```", content, re.S)
+    raw = m.group(1).strip() if m else content.strip()
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    # 兼容两种结构：直接是列表，或包在 {"results": [...]} 里
+    if isinstance(data, dict):
+        for key in ("results", "jobs", "data", "列表"):
+            if isinstance(data.get(key), list):
+                data = data[key]
+                break
+        else:
+            return None
+    if not isinstance(data, list) or not data:
+        return None
+    return data
+
+def normalize_jobs(items: list) -> pd.DataFrame:
+    rows = []
+    for i, it in enumerate(items, start=1):
+        if not isinstance(it, dict):
+            continue
+        # 得分兼容多种字段名，提取数字
+        score_raw = it.get("匹配得分", it.get("得分", it.get("score", "")))
+        score_num = None
+        if score_raw is not None:
+            mm = re.search(r"\d+", str(score_raw))
+            if mm:
+                score_num = int(mm.group())
+        rows.append({
+            "排名": i,
+            "企业名称": it.get("企业名称", it.get("公司", "")),
+            "招聘岗位": it.get("招聘岗位", it.get("岗位", "")),
+            "匹配得分": score_num if score_num is not None else "",
+            "匹配理由": it.get("匹配理由", it.get("理由", it.get("匹配分析", ""))),
+            "工作地点": it.get("工作地点", it.get("地点", "")),
+            "薪资福利": it.get("薪资福利", it.get("薪资", "")),
+            "更新日期": it.get("更新日期", it.get("日期", "")),
+        })
+    return pd.DataFrame(rows)
+
 if df is None:
     st.error("❌ 未找到 jobs.xlsx，请确保文件在项目目录下！")
 else:
     st.success(f"✅ 已成功加载 {len(df)} 个本地岗位数据！")
     resume_text = st.text_area("✍️ 请将简历内容（纯文本）粘贴到这里：", height=250)
 
-    # ---------- 解析 AI 返回的结构化 JSON（失败返回 None） ----------
-    def parse_match_json(content: str):
-        if not content:
-            return None
-        # 抽取 ```json ... ``` 代码块，否则取整段
-        m = re.search(r"```(?:json)?\s*(.*?)```", content, re.S)
-        raw = m.group(1).strip() if m else content.strip()
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return None
-        # 兼容两种结构：直接是列表，或包在 {"results": [...]} 里
-        if isinstance(data, dict):
-            for key in ("results", "jobs", "data", "列表"):
-                if isinstance(data.get(key), list):
-                    data = data[key]
-                    break
-            else:
-                return None
-        if not isinstance(data, list) or not data:
-            return None
-        return data
-
-    def normalize_jobs(items: list) -> pd.DataFrame:
-        rows = []
-        for i, it in enumerate(items, start=1):
-            if not isinstance(it, dict):
-                continue
-            # 得分兼容多种字段名，提取数字
-            score_raw = it.get("匹配得分", it.get("得分", it.get("score", "")))
-            score_num = None
-            if score_raw is not None:
-                mm = re.search(r"\d+", str(score_raw))
-                if mm:
-                    score_num = int(mm.group())
-            rows.append({
-                "排名": i,
-                "企业名称": it.get("企业名称", it.get("公司", "")),
-                "招聘岗位": it.get("招聘岗位", it.get("岗位", "")),
-                "匹配得分": score_num if score_num is not None else "",
-                "匹配理由": it.get("匹配理由", it.get("理由", it.get("匹配分析", ""))),
-                "工作地点": it.get("工作地点", it.get("地点", "")),
-                "薪资福利": it.get("薪资福利", it.get("薪资", "")),
-                "更新日期": it.get("更新日期", it.get("日期", "")),
-            })
-        return pd.DataFrame(rows)
-
+    # 触发匹配：两个版本共用同一次 AI 调用，结果存入 session_state
     if st.button("🚀 开始 AI 智能匹配", type="primary"):
         if not api_key:
             st.warning("⚠️ 请先在左侧输入 API Key！")
@@ -177,38 +185,50 @@ else:
                     )
 
                     ai_content = response.choices[0].message.content
-
-                    # 1) 上方：保留原有的文字匹配报告（去掉 JSON 代码块部分，避免重复）
-                    st.subheader(f"🎯 {model_choice} 智能匹配报告")
+                    # 文字报告：去掉 JSON 代码块部分，避免重复
                     text_report = re.sub(r"```(?:json)?\s*.*?```", "", ai_content, flags=re.S).strip()
-                    if text_report:
-                        st.markdown(text_report)
-
-                    # 2) 下方：把同一份 AI 匹配结果整理成清晰表格
                     items = parse_match_json(ai_content)
-                    if items:
-                        result_df = normalize_jobs(items)
-                        if not result_df.empty:
-                            st.subheader("📋 匹配结果一览表")
-                            st.dataframe(
-                                result_df,
-                                use_container_width=True,
-                                hide_index=True,
-                                column_config={
-                                    "匹配得分": st.column_config.ProgressColumn(
-                                        "匹配得分", min_value=0, max_value=100, format="%d 分"
-                                    ),
-                                },
-                            )
-                            st.download_button(
-                                "⬇️ 下载匹配结果 CSV",
-                                data=result_df.to_csv(index=False).encode("utf-8-sig"),
-                                file_name="AI匹配结果.csv",
-                                mime="text/csv",
-                            )
-                    else:
-                        st.info("💡 本次模型未返回结构化数据，以上方文字报告为准；可重新点击按钮再匹配一次。")
+                    result_df = normalize_jobs(items) if items else pd.DataFrame()
+
+                    # 存入会话状态，供两个版本页面分别读取
+                    st.session_state["text_report"] = text_report
+                    st.session_state["result_df"] = result_df
 
                 except Exception as e:
                     st.error(f"❌ 调用 AI 失败，错误信息：{e}")
                     st.info("💡 常见原因：1. API Key 无效；2. 模型名称/接入点ID 填错；3. 账号余额不足。")
+
+    # ================= 左侧导航：两个独立页面 =================
+    text_report = st.session_state.get("text_report", "")
+    result_df = st.session_state.get("result_df", pd.DataFrame())
+
+    if view_mode.startswith("📄"):
+        # ---------- 页面一：文字版报告 ----------
+        st.subheader(f"🎯 {model_choice} 智能匹配报告（文字版）")
+        if text_report:
+            st.markdown(text_report)
+        else:
+            st.info("💡 请先粘贴简历并点击「🚀 开始 AI 智能匹配」，生成后在此查看文字报告。")
+
+    else:
+        # ---------- 页面二：表格版一览表（单独一页） ----------
+        st.subheader("📋 匹配结果一览表（表格版）")
+        if result_df is not None and not result_df.empty:
+            st.dataframe(
+                result_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "匹配得分": st.column_config.ProgressColumn(
+                        "匹配得分", min_value=0, max_value=100, format="%d 分"
+                    ),
+                },
+            )
+            st.download_button(
+                "⬇️ 下载匹配结果 CSV",
+                data=result_df.to_csv(index=False).encode("utf-8-sig"),
+                file_name="AI匹配结果.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info("💡 暂无表格数据。请先粘贴简历并点击「🚀 开始 AI 智能匹配」；若模型未返回结构化数据，可在文字版查看结论。")
