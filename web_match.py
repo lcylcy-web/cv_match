@@ -76,6 +76,39 @@ def parse_match_json(content: str):
         return None
     return data
 
+def _esc(text) -> str:
+    """HTML 转义，防止岗位文本里的特殊字符破坏卡片结构。"""
+    if text is None:
+        return ""
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+# ---------- 卡片版样式（参照活动卡片模板：绿色主色、圆角白卡、进度条） ----------
+CARD_CSS = """
+<style>
+.mk-list{display:flex;flex-direction:column;gap:14px;margin-top:8px}
+.mk-card{background:#fff;border:1px solid #eceee8;border-radius:18px;padding:16px;
+  box-shadow:0 1px 3px rgba(31,42,28,.06)}
+.mk-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.mk-name{font-size:15px;font-weight:700;color:#1f2a1c;flex:1;min-width:0;line-height:1.4}
+.mk-rank{flex:0 0 auto;font-size:12px;font-weight:700;color:#4a8230;background:#eef5e8;
+  border-radius:8px;padding:3px 9px;white-space:nowrap}
+.mk-reason{font-size:13px;color:#5b6657;margin-bottom:10px;line-height:1.6}
+.mk-meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#5b6657;margin-bottom:10px}
+.mk-meta span{display:inline-flex;align-items:center;gap:5px;min-width:0}
+.mk-meta svg{width:13px;height:13px;color:#5f9e3f;flex:0 0 auto}
+.mk-score{display:flex;align-items:center;gap:10px}
+.mk-bar{flex:1;height:8px;border-radius:999px;background:#eceee8;overflow:hidden}
+.mk-bar i{display:block;height:100%;background:#5f9e3f;border-radius:999px}
+.mk-num{font-size:13px;font-weight:700;color:#4a8230;min-width:46px;text-align:right}
+</style>
+"""
+
 def normalize_jobs(items: list) -> pd.DataFrame:
     rows = []
     for i, it in enumerate(items, start=1):
@@ -236,19 +269,70 @@ else:
                         st.markdown("　" + "　｜　".join(detail_parts))
 
     else:
-        # ---------- 页面二：表格版一览表（单独一页） ----------
-        st.subheader("📋 匹配结果一览表（表格版）")
+        # ---------- 页面二：卡片版一览表（单独一页，模板风 + 自动填充结果） ----------
+        st.subheader("📋 匹配结果一览表（卡片版）")
         if result_df is not None and not result_df.empty:
-            st.dataframe(
-                result_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "匹配得分": st.column_config.ProgressColumn(
-                        "匹配得分", min_value=0, max_value=100, format="%d 分"
-                    ),
-                },
+            # 注入卡片模板样式（参照活动卡片风）
+            st.markdown(CARD_CSS, unsafe_allow_html=True)
+
+            cards_html = []
+            for _, row in result_df.iterrows():
+                rank = row.get("排名", "")
+                company = _esc(row.get("企业名称", ""))
+                job = _esc(row.get("招聘岗位", ""))
+                reason = _esc(row.get("匹配理由", ""))
+                location = _esc(row.get("工作地点", ""))
+                salary = _esc(row.get("薪资福利", ""))
+                date = _esc(row.get("更新日期", ""))
+
+                score = row.get("匹配得分", "")
+                if score == "" or score is None:
+                    score_num = 0
+                    score_text = "—"
+                else:
+                    score_num = int(score)
+                    score_text = f"{score_num} 分"
+
+                meta_parts = []
+                if location:
+                    meta_parts.append(
+                        f'<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
+                        f'<path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>{location}</span>'
+                    )
+                if salary:
+                    meta_parts.append(
+                        f'<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
+                        f'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{salary}</span>'
+                    )
+                if date:
+                    meta_parts.append(
+                        f'<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">'
+                        f'<rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 9h18"/></svg>{date}</span>'
+                    )
+                meta_html = "".join(meta_parts)
+
+                cards_html.append(
+                    f"""
+                    <article class="mk-card">
+                      <div class="mk-top">
+                        <div class="mk-name">{company} — {job}</div>
+                        <div class="mk-rank">No.{rank}</div>
+                      </div>
+                      <div class="mk-reason">{reason}</div>
+                      <div class="mk-meta">{meta_html}</div>
+                      <div class="mk-score">
+                        <div class="mk-bar"><i style="width:{score_num}%"></i></div>
+                        <div class="mk-num">{score_text}</div>
+                      </div>
+                    </article>
+                    """
+                )
+
+            st.markdown(
+                '<div class="mk-list">' + "".join(cards_html) + "</div>",
+                unsafe_allow_html=True,
             )
+
             st.download_button(
                 "⬇️ 下载匹配结果 CSV",
                 data=result_df.to_csv(index=False).encode("utf-8-sig"),
@@ -256,4 +340,4 @@ else:
                 mime="text/csv",
             )
         else:
-            st.info("💡 暂无表格数据。请先粘贴简历并点击「🚀 开始 AI 智能匹配」；若模型未返回结构化数据，可在文字版查看结论。")
+            st.info("💡 暂无卡片数据。请先粘贴简历并点击「🚀 开始 AI 智能匹配」；若模型未返回结构化数据，可在文字版查看结论。")
