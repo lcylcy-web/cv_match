@@ -210,6 +210,31 @@ else:
         else:
             st.info("💡 请先粘贴简历并点击「🚀 开始 AI 智能匹配」，生成后在此查看文字报告。")
 
+        # 文字版同样列出全部匹配岗位结果（逐条卡片式呈现）
+        if result_df is not None and not result_df.empty:
+            st.divider()
+            st.subheader("📌 匹配岗位明细")
+            for _, row in result_df.iterrows():
+                score = row.get("匹配得分", "")
+                score_text = f"{score} 分" if score != "" else "—"
+                with st.container(border=True):
+                    st.markdown(
+                        f"**{row.get('排名', '')}. {row.get('企业名称', '')} — {row.get('招聘岗位', '')}**　"
+                        f"🔖 匹配得分：**{score_text}**"
+                    )
+                    reason = row.get("匹配理由", "")
+                    if reason:
+                        st.markdown(f"　匹配理由：{reason}")
+                    detail_parts = []
+                    if row.get("工作地点", ""):
+                        detail_parts.append(f"📍 工作地点：{row.get('工作地点', '')}")
+                    if row.get("薪资福利", ""):
+                        detail_parts.append(f"💰 薪资福利：{row.get('薪资福利', '')}")
+                    if row.get("更新日期", ""):
+                        detail_parts.append(f"🗓 更新日期：{row.get('更新日期', '')}")
+                    if detail_parts:
+                        st.markdown("　" + "　｜　".join(detail_parts))
+
     else:
         # ---------- 页面二：表格版一览表（单独一页） ----------
         st.subheader("📋 匹配结果一览表（表格版）")
