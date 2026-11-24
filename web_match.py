@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import json
 import re
+import random
 from openai import OpenAI
 
 st.set_page_config(page_title="简历岗位匹配工具", page_icon="📄", layout="wide")
@@ -165,6 +166,9 @@ else:
                         jobs_text += f"更新日期：{row.get('更新日期', '')}\n"
                         jobs_text += "---\n"
 
+                    # 本次随机匹配岗位数量：2~5 个
+                    top_n = random.randint(2, 5)
+
                     # 构建给 AI 的指令：要求同时给出文字结论和结构化 JSON，便于下方生成表格
                     prompt = f"""
                     你是一个专业的 HR 招聘助手。请根据以下候选人的简历内容，对比给出的岗位列表，评估匹配度（0-100分），并按得分从高到低排序。
@@ -175,7 +179,7 @@ else:
                     【岗位列表】
                     {jobs_text}
 
-                    请先简要说明整体匹配结论，然后输出匹配度最高的前 5 个岗位。
+                    请先简要说明整体匹配结论，然后输出匹配度最高的前 {top_n} 个岗位（数量必须为 {top_n} 个，不要多给也不要少给）。
                     除文字说明外，必须在最后用 ```json 代码块输出一个 JSON 数组，供系统生成表格。数组中每个对象包含以下字段：
                     - 企业名称
                     - 招聘岗位
@@ -215,6 +219,8 @@ else:
                     # 文字报告：去掉 JSON 代码块部分，避免重复
                     text_report = re.sub(r"```(?:json)?\s*.*?```", "", ai_content, flags=re.S).strip()
                     items = parse_match_json(ai_content)
+                    if items:
+                        items = items[:top_n]  # 兜底：按本次随机数量截断
                     result_df = normalize_jobs(items) if items else pd.DataFrame()
 
                     # 存入会话状态，供两个版本页面分别读取
