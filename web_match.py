@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import os
+import json
+import re
 from openai import OpenAI
 
 st.set_page_config(page_title="简历岗位匹配工具", page_icon="📄", layout="wide")
@@ -21,7 +23,7 @@ if model_choice == "通义千问 (Qwen)":
     default_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     default_model = "qwen-plus"
 elif model_choice == "DeepSeek":
-    st.sidebar.markdown("[获取阿里云百炼 API Key](https://bailian.console.aliyun.com/)")
+    st.sidebar.markdown("[获取阿里云百炼 API Key](https://bailian.console.aliyuncs.com/)")
     # 使用你专属工作空间的 Base URL
     default_base_url = "https://ws-bfasmdpgnnoew27c.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
     # 更换为当前有效的模型名称
@@ -35,8 +37,7 @@ elif model_choice == "豆包 (Doubao)":
 api_key = st.sidebar.text_input("请输入 API Key：", value=st.secrets.get("API_KEY", ""), type="password")
 model_name = st.sidebar.text_input("模型名称 / 接入点ID：", value=default_model)
 
-# ================= 主页面 =================
-# 读取 Excel
+# ================= 读取 Excel =================
 def load_data():
     excel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.xlsx")
     if os.path.exists(excel_path):
@@ -49,9 +50,55 @@ if df is None:
     st.error("❌ 未找到 jobs.xlsx，请确保文件在项目目录下！")
 else:
     st.success(f"✅ 已成功加载 {len(df)} 个本地岗位数据！")
-    
     resume_text = st.text_area("✍️ 请将简历内容（纯文本）粘贴到这里：", height=250)
-    
+
+    # ---------- 解析 AI 返回的结构化 JSON（失败返回 None） ----------
+    def parse_match_json(content: str):
+        if not content:
+            return None
+        # 抽取 ```json ... ``` 代码块，否则取整段
+        m = re.search(r"```(?:json)?\s*(.*?)```", content, re.S)
+        raw = m.group(1).strip() if m else content.strip()
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        # 兼容两种结构：直接是列表，或包在 {"results": [...]} 里
+        if isinstance(data, dict):
+            for key in ("results", "jobs", "data", "列表"):
+                if isinstance(data.get(key), list):
+                    data = data[key]
+                    break
+            else:
+                return None
+        if not isinstance(data, list) or not data:
+            return None
+        return data
+
+    def normalize_jobs(items: list) -> pd.DataFrame:
+        rows = []
+        for i, it in enumerate(items, start=1):
+            if not isinstance(it, dict):
+                continue
+            # 得分兼容多种字段名，提取数字
+            score_raw = it.get("匹配得分", it.get("得分", it.get("score", "")))
+            score_num = None
+            if score_raw is not None:
+                mm = re.search(r"\d+", str(score_raw))
+                if mm:
+                    score_num = int(mm.group())
+            rows.append({
+                "排名": i,
+                "企业名称": it.get("企业名称", it.get("公司", "")),
+                "招聘岗位": it.get("招聘岗位", it.get("岗位", "")),
+                "匹配得分": score_num if score_num is not None else "",
+                "匹配理由": it.get("匹配理由", it.get("理由", it.get("匹配分析", ""))),
+                "工作地点": it.get("工作地点", it.get("地点", "")),
+                "薪资福利": it.get("薪资福利", it.get("薪资", "")),
+                "更新日期": it.get("更新日期", it.get("日期", "")),
+            })
+        return pd.DataFrame(rows)
+
     if st.button("🚀 开始 AI 智能匹配", type="primary"):
         if not api_key:
             st.warning("⚠️ 请先在左侧输入 API Key！")
@@ -83,7 +130,7 @@ else:
                         jobs_text += f"更新日期：{row.get('更新日期', '')}\n"
                         jobs_text += "---\n"
 
-                    # 构建给 AI 的指令
+                    # 构建给 AI 的指令：要求同时给出文字结论和结构化 JSON，便于下方生成表格
                     prompt = f"""
                     你是一个专业的 HR 招聘助手。请根据以下候选人的简历内容，对比给出的岗位列表，评估匹配度（0-100分），并按得分从高到低排序。
 
@@ -93,10 +140,29 @@ else:
                     【岗位列表】
                     {jobs_text}
 
-                    请直接输出匹配度最高的前 5 个岗位，格式要求：
-                    1. 【企业名称 - 招聘岗位】匹配得分：XX分
-                    2. 匹配理由：结合候选人的学历、专业、经验，说明为什么匹配该岗位。
-                    3. 岗位详情：包括工作地点、薪资福利、更新日期。
+                    请先简要说明整体匹配结论，然后输出匹配度最高的前 5 个岗位。
+                    除文字说明外，必须在最后用 ```json 代码块输出一个 JSON 数组，供系统生成表格。数组中每个对象包含以下字段：
+                    - 企业名称
+                    - 招聘岗位
+                    - 匹配得分（0-100 的数字）
+                    - 匹配理由（结合学历、专业、经验说明为什么匹配，控制在 80 字以内）
+                    - 工作地点
+                    - 薪资福利
+                    - 更新日期
+
+                    JSON 格式示例：
+                    ```json
+                    [
+                      {{
+                        "企业名称": "某某公司",
+                        "招聘岗位": "行政岗",
+                        "匹配得分": 88,
+                        "匹配理由": "学历专业对口，具备行政与活动统筹经验，地点在天津",
+                        "工作地点": "天津",
+                        "薪资福利": "6000-7000，五险一金",
+                        "更新日期": "2026.10.19"
+                      }}
+                    ]
                     """
 
                     # 调用大模型
@@ -110,10 +176,39 @@ else:
                         max_tokens=2000
                     )
 
-                    # 展示结果
+                    ai_content = response.choices[0].message.content
+
+                    # 1) 上方：保留原有的文字匹配报告（去掉 JSON 代码块部分，避免重复）
                     st.subheader(f"🎯 {model_choice} 智能匹配报告")
-                    st.markdown(response.choices[0].message.content)
-                    
+                    text_report = re.sub(r"```(?:json)?\s*.*?```", "", ai_content, flags=re.S).strip()
+                    if text_report:
+                        st.markdown(text_report)
+
+                    # 2) 下方：把同一份 AI 匹配结果整理成清晰表格
+                    items = parse_match_json(ai_content)
+                    if items:
+                        result_df = normalize_jobs(items)
+                        if not result_df.empty:
+                            st.subheader("📋 匹配结果一览表")
+                            st.dataframe(
+                                result_df,
+                                use_container_width=True,
+                                hide_index=True,
+                                column_config={
+                                    "匹配得分": st.column_config.ProgressColumn(
+                                        "匹配得分", min_value=0, max_value=100, format="%d 分"
+                                    ),
+                                },
+                            )
+                            st.download_button(
+                                "⬇️ 下载匹配结果 CSV",
+                                data=result_df.to_csv(index=False).encode("utf-8-sig"),
+                                file_name="AI匹配结果.csv",
+                                mime="text/csv",
+                            )
+                    else:
+                        st.info("💡 本次模型未返回结构化数据，以上方文字报告为准；可重新点击按钮再匹配一次。")
+
                 except Exception as e:
                     st.error(f"❌ 调用 AI 失败，错误信息：{e}")
                     st.info("💡 常见原因：1. API Key 无效；2. 模型名称/接入点ID 填错；3. 账号余额不足。")
