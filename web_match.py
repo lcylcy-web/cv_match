@@ -98,9 +98,9 @@ def _chart_bundle(result_df: pd.DataFrame) -> dict:
         "labels": labels,
         "values": values,
         "segments": [
-            {"name": "高匹配(≥80)", "value": high, "color": "#5f9e3f"},
-            {"name": "中匹配(60-79)", "value": mid, "color": "#f0a93b"},
-            {"name": "待提升(<60)", "value": low, "color": "#e57373"},
+            {"name": "高匹配(≥80)", "value": high, "color": "#6fae54"},
+            {"name": "中匹配(60-79)", "value": mid, "color": "#e8b34b"},
+            {"name": "待提升(<60)", "value": low, "color": "#e08a8a"},
         ],
     }
 
@@ -269,7 +269,7 @@ else:
                         st.markdown("　" + "　｜　".join(detail_parts))
 
     else:
-        # ---------- 页面二：表格版一览表（Streamlit 原生组件 + 图表） ----------
+        # ---------- 页面二：表格版一览表（清新绿白 SaaS 风 + 图表） ----------
         if result_df is not None and not result_df.empty:
             scores = [s for s in result_df["匹配得分"].tolist() if s != "" and s is not None]
             total = len(result_df)
@@ -277,6 +277,19 @@ else:
             avg_score = round(sum(scores) / len(scores)) if scores else 0
             high_cnt = next((s["value"] for s in _chart_bundle(result_df)["segments"] if s["name"].startswith("高")), 0)
             chart = _chart_bundle(result_df)
+
+            # 绿白 SaaS 风：范围受限的样式覆盖（指标卡 / 岗位卡片圆角、留白、主色）
+            st.markdown(
+                """
+                <style>
+                [data-testid="stMetric"]{background:#fff;border:1px solid #e8efe4;border-radius:14px;padding:14px 16px;}
+                [data-testid="stMetric"] [data-testid="stMetricValue"]{color:#2f6b22;}
+                [data-testid="stMetric"] [data-testid="stMetricLabel"]{color:#5b6657;}
+                div[data-testid="stVerticalBlockBorderWrapper"]{border-radius:14px;}
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
 
             # 原生指标卡一行四列
             m1, m2, m3, m4 = st.columns(4)
@@ -291,12 +304,12 @@ else:
             chart_json = json.dumps(chart, ensure_ascii=False)
             charts_html = f"""
             <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;">
-              <div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:14px;">
-                <div style="font-size:15px;font-weight:600;margin-bottom:8px;">各岗位匹配得分对比</div>
+              <div style="background:#fff;border:1px solid #e8efe4;border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(47,107,34,.06);">
+                <div style="font-size:15px;font-weight:600;color:#1f2a1c;margin-bottom:8px;">各岗位匹配得分对比</div>
                 <div id="barChart" style="width:100%;height:300px;"></div>
               </div>
-              <div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:14px;">
-                <div style="font-size:15px;font-weight:600;margin-bottom:8px;">匹配程度构成</div>
+              <div style="background:#fff;border:1px solid #e8efe4;border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(47,107,34,.06);">
+                <div style="font-size:15px;font-weight:600;color:#1f2a1c;margin-bottom:8px;">匹配程度构成</div>
                 <div id="pieChart" style="width:100%;height:300px;"></div>
               </div>
             </div>
@@ -307,9 +320,9 @@ else:
               bar.setOption({{
                 grid: {{left: 10, right: 34, top: 10, bottom: 10, containLabel: true}},
                 tooltip: {{trigger: 'axis', axisPointer: {{type: 'shadow'}}}},
-                xAxis: {{type: 'value', max: 100, axisLabel: {{color: '#6b7280'}}, splitLine: {{lineStyle: {{color: '#eee'}}}}}},
+                xAxis: {{type: 'value', max: 100, axisLabel: {{color: '#6b7280'}}, splitLine: {{lineStyle: {{color: '#eef2ea'}}}}}},
                 yAxis: {{type: 'category', data: data.labels.slice().reverse(), axisLabel: {{color: '#374151', fontSize: 11}}, axisLine: {{show: false}}}},
-                series: [{{type: 'bar', data: data.values.slice().reverse(), barWidth: 14, itemStyle: {{color: '#5f9e3f', borderRadius: [0, 7, 7, 0]}}, label: {{show: true, position: 'right', color: '#4a8230', fontWeight: 600}}}}]
+                series: [{{type: 'bar', data: data.values.slice().reverse(), barWidth: 14, itemStyle: {{color: '#6fae54', borderRadius: [0, 7, 7, 0]}}, label: {{show: true, position: 'right', color: '#2f6b22', fontWeight: 600}}}}]
               }});
               var pie = echarts.init(document.getElementById('pieChart'));
               pie.setOption({{
@@ -330,7 +343,7 @@ else:
             st.divider()
             st.subheader("📌 匹配岗位明细")
 
-            # 原生列布局岗位卡片（避免宽表文字截断、列宽死板）
+            # 原生列布局岗位卡片（绿白 SaaS 风，避免宽表文字截断）
             for _, row in result_df.iterrows():
                 rank = row.get("排名", "")
                 company = str(row.get("企业名称", "") or "")
